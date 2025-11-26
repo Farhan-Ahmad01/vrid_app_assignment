@@ -1,27 +1,36 @@
 package com.example.vrid_app_assignment.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.vrid_app_assignment.api.BlogDataModel
+import com.example.vrid_app_assignment.db.AppDatabase
+import com.example.vrid_app_assignment.db.BlogPostEntity
 import com.example.vrid_app_assignment.repository.BlogRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class BlogViewModel : ViewModel() {
+class BlogViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = BlogRepository()
+    private val repository: BlogRepository
 
-    private val _blogPosts = MutableStateFlow<BlogDataModel?>(null)
-    val blogPosts: StateFlow<BlogDataModel?> = _blogPosts
+    val blogPosts: StateFlow<List<BlogPostEntity>?>
 
-    fun fetchBlogPosts() {
+    init {
+        val blogDao = AppDatabase.getDatabase(application).blogDao()
+        repository = BlogRepository(blogDao)
+        blogPosts = repository.blogPosts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null // Use null for initial state
+        )
+        refreshBlogPosts()
+    }
+
+    fun refreshBlogPosts() {
         viewModelScope.launch {
-            try {
-                _blogPosts.value = repository.getBlogPosts(1, 10)
-            } catch (e: Exception) {
-                // Handle error
-            }
+            repository.refreshBlogPosts()
         }
     }
 }
